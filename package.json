@@ -1,0 +1,20 @@
+{
+  "name": "arstotzka",
+  "version": "0.10.0",
+  "description": "JS validation utility",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "JSON",
+    "schema",
+    "validator",
+    "validation",
+    "jsonschema",
+    "json-schema"
+  ],
+  "author": "milesseventh",
+  "license": "WTFPL"
+}
