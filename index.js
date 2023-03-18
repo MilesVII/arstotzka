@@ -112,11 +112,11 @@ function stricterConstraints(raw){
 * - selfAlias ("_self"): Schema property name for referring nested object itself
 * @return Array of errors
  */
-export function validate(target = {}, schema = {}, options = {}){
+export function validate(target, schema = {}, options = {}){
 	options = Object.assign(VALIDATION_DEFAULTS, options)
 	const errors = [];
 
-	const targetKeys = Object.keys(target);
+	const targetKeys = Object.keys(target || {});
 	const schemaKeys = Object.keys(schema);
 
 	for (let sKey of schemaKeys){

@@ -5,6 +5,31 @@ JS data validation tool featuring laconic schema format and a sexy name.
 
 See detailed usage example in **[usage.js](https://github.com/MilesVII/arstotzka/blob/master/usage.js)**
 
+```
+const schema = {
+	id: "number",
+	username: ["string", x => x.length < 10],
+	post: "string",
+	comments: Arstotzka.ARRAY_OF({
+		author: ["string", Arstotzka.OPTIONAL],
+		text: "string"
+	})
+}
+
+const goodData = {
+	id: 1337,
+	username: "mr.hands",
+	post: "Henlo there",
+	comments: [
+		{author: "Johnny", text: "henlo"},
+		{text: "hey hey"},
+		{author: "miles", text: "birb"},
+	]
+}
+
+console.log(Arstotzka.validate(goodData, schema, {allowExtraProperties: false}));
+```
+
 ### Import:
 `import * as Arstotzka from "Arstotzka";`
 
