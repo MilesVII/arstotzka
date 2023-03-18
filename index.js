@@ -3,13 +3,33 @@ export const ERRORS = {
 	typeMismatch: "Provided type is not allowed by schema",
 	customFail: "Custom validation function failed",
 	extraProperty: "Provided object contains properties not present in schema",
-	exceptionOnCustom: "Exception thrown during constraint validation"
+	exceptionOnCustom: "Exception thrown during constraint validation",
+	notArray: "Tried using ARRAY_OF constraint on non-array value"
 };
 
+export const OPTIONAL = Symbol();
+const FORBIDDEN_SIGNATURE = Symbol(); // https://www.youtube.com/watch?v=qSqXGeJJBaI
+const FC_ARRAY = Symbol();
+export function ARRAY_OF(rawConstraints){
+	const proto = forbiddenObject();
+	proto.type = FC_ARRAY;
+	proto.rawConstraints = rawConstraints;
+	return proto;
+}
+
+const TYPE = t => x => typeof x == t;
 export const NOT_NULL = x => x !== null;
 export const IS_ARRAY = x => Array.isArray(x);
-const TYPE = t => x => typeof x == t;
-export const OPTIONAL = Symbol();
+
+function forbiddenObject(){
+	return {
+		forbiddenKey: FORBIDDEN_SIGNATURE
+	};
+}
+
+function isForbidden(obj){
+	return obj?.forbiddenKey == FORBIDDEN_SIGNATURE;
+}
 
 function safe(cb){
 	try {
@@ -48,10 +68,14 @@ function arrayOfConstraints(raw, selfAlias){
 		return raw;
 	} else {
 		if (typeof raw == "object"){
-			if (raw.hasOwnProperty(selfAlias)){
-				return arrayOfConstraints(raw[selfAlias]);
+			if (isForbidden(raw)){
+				return [raw]
 			} else {
-				return ["object"];
+				if (raw.hasOwnProperty(selfAlias)){
+					return arrayOfConstraints(raw[selfAlias]);
+				} else {
+					return ["object"];
+				}
 			}
 		} else {
 			return [raw];
@@ -62,6 +86,7 @@ function arrayOfConstraints(raw, selfAlias){
 function stricterConstraints(raw){
 	const r = [];
 	for (let c of raw){
+		if (isForbidden(c)) continue;
 		switch (typeof c){
 		case ("string"): {
 			if (c == "array")
@@ -84,7 +109,7 @@ function stricterConstraints(raw){
 *
 * - allErrors (true) : return all errors instead of interrupting after first fail
 * - allowExtraProperties (true) : If false, adds specific error to a list for every property of target object not present in schema
-* - selfAlias ("_self"): Schema property name for referring nested object
+* - selfAlias ("_self"): Schema property name for referring nested object itself
 * @return Array of errors
  */
 export function validate(target = {}, schema = {}, options = {}){
@@ -102,6 +127,7 @@ export function validate(target = {}, schema = {}, options = {}){
 		const schemaAsArray = arrayOfConstraints(rawPropertySchema, options.selfAlias);
 		const flags = schemaAsArray.filter(c => typeof c == "symbol");
 		const constraints = stricterConstraints(schemaAsArray);
+		const forbiddenConstraints = schemaAsArray.filter(s => isForbidden(s));
 
 		if (!targetKeys.includes(sKey)){
 			if (!flags.includes(OPTIONAL)){
@@ -120,7 +146,30 @@ export function validate(target = {}, schema = {}, options = {}){
 			continue;
 		}
 
-		if (typeof rawPropertySchema == "object" && !Array.isArray(rawPropertySchema)){
+		for (let fc of forbiddenConstraints){
+			switch (fc.type){
+			case FC_ARRAY: {
+				if (Array.isArray(target[sKey])){
+					const forbiddenErrors = [];
+					let indexCounter = 0;
+					for (let item of target[sKey]){
+						const e = validate({"": item}, {"": fc.rawConstraints}, options);
+						e.forEach(err => err.propertyName = `${sKey}[${indexCounter}]${err.propertyName}`);
+						forbiddenErrors.push(...e);
+						++indexCounter;
+					}
+
+					errors.push(...forbiddenErrors);
+				} else {
+					errors.push(error(sKey, "notArray", "array", typeof target[sKey]))
+				}
+				const success = true;
+				break;
+			}
+			}
+		}
+
+		if (typeof rawPropertySchema == "object" && !Array.isArray(rawPropertySchema) && !isForbidden(rawPropertySchema)){
 			delete rawPropertySchema[options.selfAlias];
 
 			const nestedErrors = validate(target[sKey], rawPropertySchema, options);
