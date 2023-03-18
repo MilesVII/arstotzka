@@ -16,5 +16,13 @@
     "json-schema"
   ],
   "author": "milesseventh",
-  "license": "WTFPL"
+  "license": "WTFPL",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MilesVII/arstotzka.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MilesVII/arstotzka/issues"
+  },
+  "homepage": "https://github.com/MilesVII/arstotzka#readme"
 }
