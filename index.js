@@ -4,7 +4,8 @@ export const ERRORS = {
 	customFail: "Custom validation function failed",
 	extraProperty: "Provided object contains properties not present in schema",
 	exceptionOnCustom: "Exception thrown during constraint validation",
-	notArray: "Tried using ARRAY_OF constraint on non-array value"
+	notArray: "Tried using ARRAY_OF constraint on non-array value",
+	targetIsNull: "Passed object or array item is null"
 };
 
 export const OPTIONAL = Symbol();
@@ -18,7 +19,7 @@ export function ARRAY_OF(rawConstraints){
 }
 
 const TYPE = t => x => typeof x == t;
-export const NOT_NULL = x => x !== null;
+export const IS_NULL = x => x === null;
 export const IS_ARRAY = x => Array.isArray(x);
 
 function forbiddenObject(){
@@ -116,12 +117,16 @@ export function validate(target, schema = {}, options = {}){
 	options = Object.assign(VALIDATION_DEFAULTS, options)
 	const errors = [];
 
+	if (IS_NULL(target)) return [error(null, "targetIsNull", "object", target)];
+
 	const targetKeys = Object.keys(target || {});
 	const schemaKeys = Object.keys(schema);
 
 	for (let sKey of schemaKeys){
 		if (!options.allErrors && errors.length > 0)
 			return errors;
+
+		if (sKey == options.selfAlias) continue;
 
 		const rawPropertySchema = schema[sKey];
 		const schemaAsArray = arrayOfConstraints(rawPropertySchema, options.selfAlias);
@@ -170,11 +175,10 @@ export function validate(target, schema = {}, options = {}){
 		}
 
 		if (typeof rawPropertySchema == "object" && !Array.isArray(rawPropertySchema) && !isForbidden(rawPropertySchema)){
-			delete rawPropertySchema[options.selfAlias];
-
 			const nestedErrors = validate(target[sKey], rawPropertySchema, options);
 			const mappedErrors = nestedErrors.map(e => {
-				e.propertyName = `${sKey}.${e.propertyName}`;
+				const dot = IS_NULL(e.propertyName) ? "" : ".";
+				e.propertyName = `${sKey}${dot}${e.propertyName || ""}`;
 				return e;
 			});
 			errors.push(...mappedErrors);
