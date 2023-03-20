@@ -32,12 +32,17 @@ console.log(Arstotzka.validate(goodData, schema, {allowExtraProperties: false}))
 
 ### Import:
 Arstotzka is an ES6 module, so:
-`import * as Arstotzka from "arstotzka";`
+```
+import * as Arstotzka from "arstotzka";
+```
 or, if you are okay with polluting namespace:
-`import { validate, OPTIONAL, ARRAY_OF, DYNAMIC } from "arstotzka";`
+```
+import { validate, OPTIONAL, ARRAY_OF, DYNAMIC } from "arstotzka";
+```
+
 
 ### Schema format:
-Schema is a value that can be a
+Schema is a value that can be either of
 - **string**: such schema will make validator check coresponding value's type with [typeof operator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof), with exception of "array" constraint -- validator will [treat this type](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/isArray) as special case;
 `"string"`, `"number"`, `"array"`
 
@@ -51,16 +56,18 @@ Schema is a value that can be a
 `["string", x => x != x.trim()]`, `["number", x => x >= 0, x => x % 1 === 0]`
 
 - **Arstotzka.ARRAY_OF()**: the function accepts any of above and returns a special constraint appliable to an array of values;
-- `Arstotzka.ARRAY_OF("number")`, `Arstotzka.ARRAY_OF({id: "number", text: "string"})`, `Arstotzka.ARRAY_OF(["number", x => x > 0])`, `Arstotzka.ARRAY_OF(Arstotzka.ARRAY_OF("number"))`
+`Arstotzka.ARRAY_OF("number")`, `Arstotzka.ARRAY_OF({id: "number", text: "string"})`, `Arstotzka.ARRAY_OF(["number", x => x > 0])`, `Arstotzka.ARRAY_OF(Arstotzka.ARRAY_OF("number"))`
 
 - **Arstotzka.DYNAMIC()**: the function accepts a callback that should return a valid schema, allowing to define schema at runtime;
-- `Arstotzka.DYNAMIC(x => dynSchema[x.type])`
+`Arstotzka.DYNAMIC(x => dynSchema[x.type])`
 
-Applying a schema to a property that is an object can be done by combining **object** schema with anything via **array** schema:
+Applying a schema to a property that is an object can be done by combining **object** schema with anything via **array** schema;
+
 
 ### Available options:
 - **allErrors** (default is `true`) : If false, will return errors as soon as encountered, interrupting validation
 - **allowExtraProperties** (default is `true`) : If false, adds specific error to a list for every property of target object not present in schema
+
 
 ### Error format
 ```
@@ -74,6 +81,7 @@ Applying a schema to a property that is an object can be done by combining **obj
 ```
 
 All error ids and messages can be found at `Arstotzka.ERRORS`
+
 
 ## License
 Shared under WTFPL license.
