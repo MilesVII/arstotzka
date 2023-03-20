@@ -91,13 +91,19 @@ const testSubject2 = {
 	zero: "0"
 };
 
+const parseableIntSchema = Arstotzka.ANY_OF(
+	"number",
+	["string", x => !isNaN(parseInt(x))]
+);
+
 const tests = [
 	[null, {x: "number"}],
 	[testSubject0, schema], // Only an error caused by invalid validator
 	[testSubject1, schema], // Full of errors
 	["miles", "string"],    // Any value can be validated, not only objects
 	[7, "string"],
-	[testSubject2, schema1]
+	[testSubject2, schema1],
+	["7", parseableIntSchema]
 ];
 
 const TEST_SELECTOR = 0;

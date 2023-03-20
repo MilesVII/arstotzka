@@ -37,7 +37,7 @@ import * as Arstotzka from "arstotzka";
 ```
 or, if you are okay with polluting namespace:
 ```
-import { validate, OPTIONAL, ARRAY_OF, DYNAMIC } from "arstotzka";
+import { validate, OPTIONAL, ARRAY_OF, ANY_OF, DYNAMIC } from "arstotzka";
 ```
 
 
@@ -58,8 +58,13 @@ Schema is a value that can be either of
 - **Arstotzka.ARRAY_OF()**: the function accepts any of above and returns a special constraint appliable to an array of values;
 `Arstotzka.ARRAY_OF("number")`, `Arstotzka.ARRAY_OF({id: "number", text: "string"})`, `Arstotzka.ARRAY_OF(["number", x => x > 0])`, `Arstotzka.ARRAY_OF(Arstotzka.ARRAY_OF("number"))`
 
+- **Arstotzka.ANY_OF()**: the function accepts array or vararg of schemas and returns a special constraint, which will produce a specific error only if every provided schema is violated;
+`Arstotzka.ANY_OF(["number", ["string", x => !isNaN(parseInt(x))]])`
+
 - **Arstotzka.DYNAMIC()**: the function accepts a callback that should return a valid schema, allowing to define schema at runtime;
 `Arstotzka.DYNAMIC(x => dynSchema[x.type])`
+
+- **Arstotzka.OPTIONAL**: unlike others, this schema doesn't imply any requirements, but prevents validator from logging an error in case it's property is not present in target object;
 
 Applying a schema to a property that is an object can be done by combining **object** schema with anything via **array** schema;
 

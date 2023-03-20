@@ -7,7 +7,8 @@ export const ERRORS = {
 	notArray: "Tried using ARRAY_OF constraint on non-array value",
 	targetIsNull: "Passed object or array item is null",
 	functionExpected: "Expected function as dynamic constraint",
-	objectExpected: "Expected object"
+	objectExpected: "Expected object",
+	anyFailed: "None of ANY_OF constraints are met"
 };
 
 export const OPTIONAL = Symbol();
@@ -17,6 +18,18 @@ export function ARRAY_OF(constraints){
 	}
 	return constraint(FC_ARRAY, null, constraints);
 }
+export function ANY_OF(constraints){
+	if (arguments.length > 1){
+		return constraint(FC_ANY, null, Array.from(arguments));
+	} else {
+		if (Array.isArray(constraints)){
+			return constraint(FC_ANY, null, constraints);
+		} else {
+			return constraint(FC_ANY, null, [constraints]);
+		}
+	}
+	
+}
 export function DYNAMIC(constraints){
 	return constraint(FC_DYNAMIC, null, constraints);
 }
@@ -25,6 +38,7 @@ const TYPE = t => x => typeof x == t;
 
 const CONSTRAINT = Symbol();
 const FC_ARRAY = Symbol(); // https://www.youtube.com/watch?v=qSqXGeJJBaI
+const FC_ANY = Symbol();
 const FC_DYNAMIC = Symbol();
 const FC_NESTED = Symbol();
 
@@ -156,6 +170,28 @@ function checkValue(propertyName, value, constraints, options){
 					errors.push(...subErrors);
 					++indexCounter;
 				}
+
+				break;
+			}
+			case FC_ANY: {
+				const subSchemas = constraint.expected;
+
+				const subErrors = [];
+				let passed = false;
+				let counter = 0;
+
+				for (let subSchema of subSchemas){
+					const [subConstraints, flags] = parseSchema(subSchema);
+					const caseErrors = checkValue(`${propertyName}.<any#${counter}>`, value, subConstraints, options);
+					++counter;
+					subErrors.push(caseErrors);
+					if (caseErrors.length == 0) {
+						passed = true;
+						break;
+					}
+				}
+
+				if (!passed) errors.push(error(propertyName, "anyFailed", undefined, subErrors));
 
 				break;
 			}
