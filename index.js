@@ -35,6 +35,7 @@ export function DYNAMIC(constraints){
 }
 
 const TYPE = t => x => typeof x == t;
+const IS_ARRAY = x => Array.isArray(x);
 
 const CONSTRAINT = Symbol();
 const FC_ARRAY = Symbol(); // https://www.youtube.com/watch?v=qSqXGeJJBaI

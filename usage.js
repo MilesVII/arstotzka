@@ -97,7 +97,7 @@ const parseableIntSchema = Arstotzka.ANY_OF(
 );
 
 const tests = [
-	[null, {x: "number"}],
+	[null, "array"],
 	[testSubject0, schema], // Only an error caused by invalid validator
 	[testSubject1, schema], // Full of errors
 	["miles", "string"],    // Any value can be validated, not only objects
