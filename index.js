@@ -5,32 +5,33 @@ export const ERRORS = {
 	extraProperty: "Provided object contains properties not present in schema",
 	exceptionOnCustom: "Exception thrown during constraint validation",
 	notArray: "Tried using ARRAY_OF constraint on non-array value",
-	targetIsNull: "Passed object or array item is null"
+	targetIsNull: "Passed object or array item is null",
+	functionExpected: "Expected function as dynamic constraint",
+	objectExpected: "Expected object"
 };
 
 export const OPTIONAL = Symbol();
-const FORBIDDEN_SIGNATURE = Symbol(); // https://www.youtube.com/watch?v=qSqXGeJJBaI
-const FC_ARRAY = Symbol();
-export function ARRAY_OF(rawConstraints){
-	const proto = forbiddenObject();
-	proto.type = FC_ARRAY;
-	proto.rawConstraints = rawConstraints;
-	return proto;
+export function ARRAY_OF(constraints){
+	if (arguments.length > 1){
+		console.error("Got more than one argument to ARRAY_OF. Did you mean to pass an array of constraints?");
+	}
+	return constraint(FC_ARRAY, null, constraints);
+}
+export function DYNAMIC(constraints){
+	return constraint(FC_DYNAMIC, null, constraints);
 }
 
 const TYPE = t => x => typeof x == t;
-export const IS_NULL = x => x === null;
-export const IS_ARRAY = x => Array.isArray(x);
 
-function forbiddenObject(){
-	return {
-		forbiddenKey: FORBIDDEN_SIGNATURE
-	};
-}
+const CONSTRAINT = Symbol();
+const FC_ARRAY = Symbol(); // https://www.youtube.com/watch?v=qSqXGeJJBaI
+const FC_DYNAMIC = Symbol();
+const FC_NESTED = Symbol();
 
-function isForbidden(obj){
-	return obj?.forbiddenKey == FORBIDDEN_SIGNATURE;
-}
+const VALIDATION_DEFAULTS = {
+	allErrors: true,
+	allowExtraProperties: true
+};
 
 function safe(cb){
 	try {
@@ -50,59 +51,133 @@ function error(propertyName, id, expected, got){
 	};
 }
 
-const VALIDATION_DEFAULTS = {
-	allErrors: true,
-	allowExtraProperties: true,
-	selfAlias: "_self"
-};
-
 function constraint(f, failMessageId, expected){
 	return {
+		type: CONSTRAINT,
 		validation: f,
 		failMessageId: failMessageId,
 		expected: expected
 	};
 }
 
-function arrayOfConstraints(raw, selfAlias){
-	if (Array.isArray(raw)){
-		return raw;
-	} else {
-		if (typeof raw == "object"){
-			if (isForbidden(raw)){
-				return [raw]
-			} else {
-				if (raw.hasOwnProperty(selfAlias)){
-					return arrayOfConstraints(raw[selfAlias]);
-				} else {
-					return ["object"];
+function parseSchema(schemaProperty){
+	function unify(raw){
+		if (raw.type == CONSTRAINT) return raw;
+
+		if (Array.isArray(raw)){
+			return raw.map(c => unify(c));
+		} else {
+			switch (typeof raw){
+				case ("string"): {
+					if (raw == "array")
+						return constraint(IS_ARRAY, "typeMismatch", raw);
+					else
+						return constraint(TYPE(raw), "typeMismatch", raw);
+				}
+				case ("function"): {
+					return constraint(raw, "customFail", undefined);
+				}
+				case ("object"): {
+					return constraint(FC_NESTED, null, raw);
+				}
+				case ("symbol"): {
+					return raw;
 				}
 			}
-		} else {
-			return [raw];
 		}
 	}
+	
+	let intermediate = unify(schemaProperty);
+	if (!Array.isArray(intermediate))
+		intermediate = [intermediate];
+	return [
+		intermediate.filter(i => i.type == CONSTRAINT),
+		intermediate.filter(i => i.type != CONSTRAINT && typeof i == "symbol")
+	];
 }
 
-function stricterConstraints(raw){
-	const r = [];
-	for (let c of raw){
-		if (isForbidden(c)) continue;
-		switch (typeof c){
-		case ("string"): {
-			if (c == "array")
-				r.push(constraint(IS_ARRAY, "typeMismatch", c))
-			else
-				r.push(constraint(TYPE(c), "typeMismatch", c))
-			break;
+function checkValue(propertyName, value, constraints, options){
+	const errors = [];
+	for (let constraint of constraints){
+		if (typeof constraint.validation == "function"){
+			const [success, validationResult] = safe(() => constraint.validation(value));
+			if (!success){
+				errors.push(error(propertyName, "exceptionOnCustom", undefined, validationResult.toString()));
+			} else if (!validationResult){
+				errors.push(error(propertyName, constraint.failMessageId, constraint.expected, value));
+			}
+			continue;
 		}
-		case ("function"): {
-			r.push(constraint(c, "customFail", undefined));
-			break;
+
+		switch(constraint.validation){
+			case FC_NESTED: {
+				if (typeof value != "object" || value === null || value == undefined){
+					errors.push(error(propertyName, "objectExpected", "object", value));
+					break;
+				}
+
+				const targetKeys = Object.keys(value);
+				const schemaKeys = Object.keys(constraint.expected);
+
+				for (let key of schemaKeys){
+					const [subConstraints, flags] = parseSchema(constraint.expected[key]);
+
+					if (!targetKeys.includes(key)){
+						if (!flags.includes(OPTIONAL)){
+							errors.push(error(`${propertyName}.${key}`, "noProperty"));
+						}
+						continue;
+					}
+
+					const subErrors = checkValue(`${propertyName}.${key}`, value[key], subConstraints, options);
+					errors.push(...subErrors);
+				}
+
+				if (!options.allowExtraProperties){
+					const extraProperties = targetKeys.filter(k => !schemaKeys.includes(k));
+					if (extraProperties.length > 0){
+						errors.push(...extraProperties.map(k => error(`${propertyName}.${k}`, "extraProperty")))
+					}
+				}
+
+				break;
+			}
+			case FC_ARRAY: {
+				if (!Array.isArray(value)){
+					errors.push(error(propertyName, "notArray", "array", typeof value))
+					break;
+				}
+
+				const [subConstraints, flags] = parseSchema(constraint.expected);
+
+				let indexCounter = 0;
+				for (let item of value){
+					const subErrors = checkValue(`${propertyName}[${indexCounter}]`, item, subConstraints, options);
+					errors.push(...subErrors);
+					++indexCounter;
+				}
+
+				break;
+			}
+			case FC_DYNAMIC: {
+				const constraintCallback = constraint.expected;
+
+				if (typeof constraintCallback != "function"){
+					errors.push(error(propertyName, "functionExpected", "function", typeof constraintCallback))
+					break;
+				}
+
+				const [subConstraints, flags] = parseSchema(constraintCallback(value))
+				const subErrors = checkValue(propertyName, value, subConstraints, options);
+				errors.push(...subErrors);
+
+				break;
+			}
 		}
-		}
+
+		if (!options.allErrors && errors.length > 0) break;
 	}
-	return r;
+	return errors;
 }
 
 /**
@@ -110,87 +185,23 @@ function stricterConstraints(raw){
 *
 * - allErrors (true) : return all errors instead of interrupting after first fail
 * - allowExtraProperties (true) : If false, adds specific error to a list for every property of target object not present in schema
-* - selfAlias ("_self"): Schema property name for referring nested object itself
 * @return Array of errors
  */
 export function validate(target, schema = {}, options = {}){
 	options = Object.assign(VALIDATION_DEFAULTS, options)
-	const errors = [];
 
-	if (IS_NULL(target)) return [error(null, "targetIsNull", "object", target)];
+	const [constraints, flags] = parseSchema(schema);
 
-	const targetKeys = Object.keys(target || {});
-	const schemaKeys = Object.keys(schema);
-
-	for (let sKey of schemaKeys){
-		if (!options.allErrors && errors.length > 0)
-			return errors;
-
-		if (sKey == options.selfAlias) continue;
-
-		const rawPropertySchema = schema[sKey];
-		const schemaAsArray = arrayOfConstraints(rawPropertySchema, options.selfAlias);
-		const flags = schemaAsArray.filter(c => typeof c == "symbol");
-		const constraints = stricterConstraints(schemaAsArray);
-		const forbiddenConstraints = schemaAsArray.filter(s => isForbidden(s));
-
-		if (!targetKeys.includes(sKey)){
-			if (!flags.includes(OPTIONAL)){
-				errors.push(error(sKey, "noProperty"));
-			}
-			continue;
-		}
-
-		for (let constraint of constraints){
-			const [success, validationResult] = safe(() => constraint.validation(target[sKey]));
-			if (!success){
-				errors.push(error(sKey, "exceptionOnCustom", undefined, validationResult.toString()));
-			} else if (!validationResult){
-				errors.push(error(sKey, constraint.failMessageId, constraint.expected, target[sKey]));
-			}
-			continue;
-		}
-
-		for (let fc of forbiddenConstraints){
-			switch (fc.type){
-			case FC_ARRAY: {
-				if (Array.isArray(target[sKey])){
-					const forbiddenErrors = [];
-					let indexCounter = 0;
-					for (let item of target[sKey]){
-						const e = validate({"": item}, {"": fc.rawConstraints}, options);
-						e.forEach(err => err.propertyName = `${sKey}[${indexCounter}]${err.propertyName}`);
-						forbiddenErrors.push(...e);
-						++indexCounter;
-					}
-
-					errors.push(...forbiddenErrors);
-				} else {
-					errors.push(error(sKey, "notArray", "array", typeof target[sKey]))
-				}
-				const success = true;
-				break;
-			}
-			}
-		}
-
-		if (typeof rawPropertySchema == "object" && !Array.isArray(rawPropertySchema) && !isForbidden(rawPropertySchema)){
-			const nestedErrors = validate(target[sKey], rawPropertySchema, options);
-			const mappedErrors = nestedErrors.map(e => {
-				const dot = IS_NULL(e.propertyName) ? "" : ".";
-				e.propertyName = `${sKey}${dot}${e.propertyName || ""}`;
-				return e;
-			});
-			errors.push(...mappedErrors);
-		}
+	if (flags.length > 0) {
+		console.error("Flags can't be used at schema's root")
 	}
 
-	if (!options.allowExtraProperties){
-		const extraProperties = targetKeys.filter(k => !schemaKeys.includes(k));
-		if (extraProperties.length > 0){
-			errors.push(...extraProperties.map(k => error(k, "extraProperty")))
-		}
-	}
+	const errors = checkValue("", target, constraints, options);
+
+	errors.forEach(e => {
+		if (e.propertyName?.startsWith("."))
+			e.propertyName = e.propertyName.slice(1);
+	});
 
 	return errors;
 }

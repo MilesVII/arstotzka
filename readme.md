@@ -27,35 +27,40 @@ const goodData = {
 	]
 }
 
-console.log(Arstotzka.validate(goodData, schema, {allowExtraProperties: false}));
+console.log(Arstotzka.validate(goodData, schema, {allowExtraProperties: false})); // Prints an array of errors
 ```
 
 ### Import:
-`import * as Arstotzka from "Arstotzka";`
+Arstotzka is an ES6 module, so:
+`import * as Arstotzka from "arstotzka";`
+or, if you are okay with polluting namespace:
+`import { validate, OPTIONAL, ARRAY_OF, DYNAMIC } from "arstotzka";`
 
 ### Schema format:
-- You build a schema, an object describing requirements for each property of object you wish to validate, then pass target object, that schema and options to `validate()` function and receive an array of detailed errors in return.
-- `const arrayOfErrors = Arstotzka.validate(objectToCheck, schema, options);`
-- Aforemetioned requirements are called **constraints**. 
-- Plain string constraints check porperty's type with [typeof operator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof), with exception of "array" constraint -- validator will [treat this type](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/isArray) as special case.
-- Examples: `name: "string"`, `id: "number"`, `list: "array"`
-- You can also specify custom constraint by providing a validation function. Validator will pass property value to it and will add an error if returned value is falsy. Exception thrown inside validation function will be catched and added as errors into output
-- Examples: `notaNaN: x => !isNaN(x)`, `nickname: x => x.length < 10`
-- It is possible to validate nested objects by passing a schema object instead of constraint:
-- `user: {name: "string", age: "number"}`
-- If needed, you can still add constraints to the nested object itself, passing them to it's `_self` property. Name of the property can be changed in the options.
-- `phrase: {_self: x => x.text.length == x.letterCount, text: "string", letterCount: "number"}`
-- You can combine different constraints by passing an array of them.
-- Just like that: `nickname: ["string",  x => x.length < 10]`, `count: ["number",  x => x >= 0,  x => x % 1 == 0]`
-- There are special constraints that serve as flags. (The only) one of them is **Arstotzka.OPTIONAL**. It allows to validate a property but prevents validator from adding an error if that property is not present in target object.
-- `commentary: ["string", Arstotzka.OPTIONAL]`
-- Finally, you can apply constraints to array's elements with **Arstotzka.ARRAY_OF()**. All the constraints passed to that function will be applied for each element. 
-- `numberArray: Arstotzka.ARRAY_OF("number")`, `posts: Arstotzka.ARRAY_OF({id: "number", text: "string"})`, `positives: Arstotzka.ARRAY_OF(["number", x = x > 0])`, or even `matrix: Arstotzka.ARRAY_OF(Arstotzka.ARRAY_OF("number"))`
+Schema is a value that can be a
+- **string**: such schema will make validator check coresponding value's type with [typeof operator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof), with exception of "array" constraint -- validator will [treat this type](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/isArray) as special case;
+`"string"`, `"number"`, `"array"`
+
+- **function**: such schema will make validator call it, pass corresponding value to it, and log an error if returned value is falsy;
+`x => !isNaN(x)`, `x => x.length < 10`
+
+- **object**: object schema requires corresponding value to also be an object, and will recursively match it's properties against provided value;
+`{name: "string", age: x => x.length > 21}`
+
+- **array**, which elements are any of above. That will require a value it matched against to fullfill *every* requirement;
+`["string", x => x != x.trim()]`, `["number", x => x >= 0, x => x % 1 === 0]`
+
+- **Arstotzka.ARRAY_OF()**: the function accepts any of above and returns a special constraint appliable to an array of values;
+- `Arstotzka.ARRAY_OF("number")`, `Arstotzka.ARRAY_OF({id: "number", text: "string"})`, `Arstotzka.ARRAY_OF(["number", x => x > 0])`, `Arstotzka.ARRAY_OF(Arstotzka.ARRAY_OF("number"))`
+
+- **Arstotzka.DYNAMIC()**: the function accepts a callback that should return a valid schema, allowing to define schema at runtime;
+- `Arstotzka.DYNAMIC(x => dynSchema[x.type])`
+
+Applying a schema to a property that is an object can be done by combining **object** schema with anything via **array** schema:
 
 ### Available options:
 - **allErrors** (default is `true`) : If false, will return errors as soon as encountered, interrupting validation
 - **allowExtraProperties** (default is `true`) : If false, adds specific error to a list for every property of target object not present in schema
-- **selfAlias** (default is `"_self"`): Schema property name for referring nested object itself
 
 ### Error format
 ```
@@ -67,6 +72,7 @@ console.log(Arstotzka.validate(goodData, schema, {allowExtraProperties: false}))
 	got: null
 }
 ```
+
 All error ids and messages can be found at `Arstotzka.ERRORS`
 
 ## License
