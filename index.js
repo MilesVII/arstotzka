@@ -8,7 +8,8 @@ export const ERRORS = {
 	targetIsNull: "Passed object or array item is null",
 	functionExpected: "Expected function as dynamic constraint",
 	objectExpected: "Expected object",
-	anyFailed: "None of ANY_OF constraints are met"
+	anyFailed: "None of ANY_OF constraints are met",
+	parsingError: "Schema parsing error"
 };
 
 export const OPTIONAL = Symbol();
@@ -75,34 +76,38 @@ function constraint(f, failMessageId, expected){
 	};
 }
 
-function parseSchema(schemaProperty){
+function parseSchema(schemaProperty, errors){
 	function unify(raw){
-		if (raw.type == CONSTRAINT) return raw;
+		if (raw !== null && raw !== undefined){
+			if (raw.type == CONSTRAINT) return raw;
 
-		if (Array.isArray(raw)){
-			return raw.map(c => unify(c));
-		} else {
-			switch (typeof raw){
-				case ("string"): {
-					if (raw == "array")
-						return constraint(IS_ARRAY, "typeMismatch", raw);
-					else
-						return constraint(TYPE(raw), "typeMismatch", raw);
-				}
-				case ("function"): {
-					return constraint(raw, "customFail", undefined);
-				}
-				case ("object"): {
-					return constraint(FC_NESTED, null, raw);
-				}
-				case ("symbol"): {
-					return raw;
+			if (Array.isArray(raw)){
+				return raw.map(c => unify(c)).filter(raw => raw !== null);
+			} else {
+				switch (typeof raw){
+					case ("string"): {
+						if (raw == "array")
+							return constraint(IS_ARRAY, "typeMismatch", raw);
+						else
+							return constraint(TYPE(raw), "typeMismatch", raw);
+					}
+					case ("function"): {
+						return constraint(raw, "customFail", undefined);
+					}
+					case ("object"): {
+						return constraint(FC_NESTED, null, raw);
+					}
+					case ("symbol"): {
+						return raw;
+					}
 				}
 			}
 		}
+		errors.push(error("<schema>", "parsingError", undefined, raw));
+		return null;
 	}
 	
-	let intermediate = unify(schemaProperty);
+	let intermediate = unify(schemaProperty) || [];
 	if (!Array.isArray(intermediate))
 		intermediate = [intermediate];
 	return [
@@ -135,7 +140,7 @@ function checkValue(propertyName, value, constraints, options){
 				const schemaKeys = Object.keys(constraint.expected);
 
 				for (let key of schemaKeys){
-					const [subConstraints, flags] = parseSchema(constraint.expected[key]);
+					const [subConstraints, flags] = parseSchema(constraint.expected[key], errors);
 
 					if (!targetKeys.includes(key)){
 						if (!flags.includes(OPTIONAL)){
@@ -163,7 +168,7 @@ function checkValue(propertyName, value, constraints, options){
 					break;
 				}
 
-				const [subConstraints, flags] = parseSchema(constraint.expected);
+				const [subConstraints, flags] = parseSchema(constraint.expected, errors);
 
 				let indexCounter = 0;
 				for (let item of value){
@@ -182,8 +187,10 @@ function checkValue(propertyName, value, constraints, options){
 				let counter = 0;
 
 				for (let subSchema of subSchemas){
-					const [subConstraints, flags] = parseSchema(subSchema);
+					const subParseErrors = [];
+					const [subConstraints, flags] = parseSchema(subSchema, subParseErrors);
 					const caseErrors = checkValue(`${propertyName}.<any#${counter}>`, value, subConstraints, options);
+					caseErrors.push(...subParseErrors);
 					++counter;
 					subErrors.push(caseErrors);
 					if (caseErrors.length == 0) {
@@ -204,7 +211,7 @@ function checkValue(propertyName, value, constraints, options){
 					break;
 				}
 
-				const [subConstraints, flags] = parseSchema(constraintCallback(value))
+				const [subConstraints, flags] = parseSchema(constraintCallback(value), errors)
 				const subErrors = checkValue(propertyName, value, subConstraints, options);
 				errors.push(...subErrors);
 
@@ -227,14 +234,15 @@ function checkValue(propertyName, value, constraints, options){
 export function validate(target, schema = {}, options = {}){
 	options = Object.assign(VALIDATION_DEFAULTS, options)
 
-	const [constraints, flags] = parseSchema(schema);
+	const parseErrors = [];
+	const [constraints, flags] = parseSchema(schema, parseErrors);
 
 	if (flags.length > 0) {
 		console.error("Flags can't be used at schema's root")
 	}
 
 	const errors = checkValue("", target, constraints, options);
-
+	errors.push(...parseErrors)
 	errors.forEach(e => {
 		if (e.propertyName?.startsWith("."))
 			e.propertyName = e.propertyName.slice(1);

@@ -1,28 +1,7 @@
 import * as Arstotzka from "./index.js";
 
-const schema = {
-	title: "string",
-	array: [Arstotzka.ARRAY_OF("number"), x => x.length > 1],
-	arrayOfObjs: Arstotzka.ARRAY_OF({
-		id: "number",
-		name: "string"
-	}),
-	notArray: Arstotzka.ARRAY_OF("string"),
-	arrayOof: Arstotzka.ARRAY_OF(Arstotzka.ARRAY_OF("number")),
-	positiveArray: Arstotzka.ARRAY_OF(x => x > 0),
-	nested: {
-		parseableNumber: [x => !isNaN(parseInt(x, 10))],
-		anotherNest: [{
-			phrase: "string",
-			wordCount: "number"
-		}, x => x.phrase.split(" ").length == x.wordCount],
-		missing: []
-	},
-	invalidValidator: [x => null.invalid],
-	optional: ["number", Arstotzka.OPTIONAL]
-};
-
-const testSubject0 = {
+// This value will be validated against schema described below
+const value = {
 	title: "1337",
 	array: [1, 2, 3],
 	arrayOfObjs: [
@@ -30,81 +9,72 @@ const testSubject0 = {
 		{id: 1, name: "second"},
 		{id: 2, name: "3"},
 	],
-	notArray: [],
-	arrayOof: [
+	matrix: [
 		[1, 2, 3],
 		[4, 5, 6],
-		[1, 2]
+		[1, 2, 0]
 	],
 	positiveArray: [Infinity, 1, 4, 5],
 	nested: {
 		parseableNumber: "777",
 		anotherNest: {
-			phrase:"henlo",
-			wordCount: 1
-		},
-		missing: 0
-	},
-	invalidValidator: "uhm"
-};
-
-const testSubject1 = {
-	title: 1337,
-	array: [1, null, 3],
-	arrayOfObjs: [
-		{id: 0, name: "_"},
-		{id: 0,},
-		{id: "0", name: "_"}
-	],
-	notArray: "[1, 2, 3]",
-	arrayOof: [
-		[1, 2, 3],
-		[4, "5", 6],
-		null,
-		[1, 2]
-	],
-	positiveArray: [0, 1, 4, -5],
-	nested: {
-		parseableNumber: "seven",
-		extraProperty: "hey",
-		anotherNest: {
-			phrase:"henlo",
+			phrase:"henlo there",
 			wordCount: 2
-		}
+		},
+		justBeThere: 0
 	},
-	invalidValidator: "uhm"
+	booleanOrNumber: 0,
+	dynamic: 69
 };
 
-const schema1 = Arstotzka.DYNAMIC(x => dynSchema[x.type]);
-const dynSchema = [
-	{
-		type: "number",
-		zero: "string"
+const schema = { // Require value to be an object
+	// Require typeof value.title to be "string"
+	title: "string",
+	
+	//Require value.array to be an array of numbers AND to be longer than 1 element
+	array: [Arstotzka.ARRAY_OF("number"), x => x.length > 1],
+
+	// Require each element of value.arrayOfObjs to be valid according to provided schema
+	arrayOfObjs: Arstotzka.ARRAY_OF({
+		id: "number",
+		name: "string"
+	}),
+
+	// Require each element of value.matrix to be an array of numbers
+	matrix: Arstotzka.ARRAY_OF(Arstotzka.ARRAY_OF("number")),
+
+	// Require each element of value.positiveArray be larger than zero, regardless of type
+	positiveArray: Arstotzka.ARRAY_OF(x => x > 0),
+
+	// Require value.nested to be an object
+	nested: {
+		// Require value.nested.parseableNumber to make this function return true
+		parseableNumber: x => !isNaN(parseInt(x, 10)),
+		// Require value.nested.anotherNest to be an object AND make provided function return true
+		anotherNest: [{
+			phrase: "string",
+			wordCount: "number"
+		}, x => x.phrase.split(" ").length == x.wordCount],
+		// Require value.nested.justBeThere to be present
+		justBeThere: []
 	},
-	{
-		type: "number",
-		one: ["number", x => x === 1]
-	}
-];
-const testSubject2 = {
-	type: 0,
-	zero: "0"
+
+	// Require value.optional to be of type "number", but only if present
+	optional: ["number", Arstotzka.OPTIONAL],
+
+	// Require value.booleanOrNumber to be either boolean, or 0 or 1
+	booleanOrNumber: Arstotzka.ANY_OF("boolean", x => x === 0 || x === 1),
+
+	// Require value.dynamic to be valid according to schema returned from provided callback (always "number" in that case)
+	dynamic: Arstotzka.DYNAMIC(x => "number")
 };
 
-const parseableIntSchema = Arstotzka.ANY_OF(
-	"number",
-	["string", x => !isNaN(parseInt(x))]
-);
+// You can call validate() without providing any options. Below are all options with default values
+const optionalValidationOptions = {
+	allowExtraProperties: true,
+	allErrors: true
+};
 
-const tests = [
-	[null, "array"],
-	[testSubject0, schema], // Only an error caused by invalid validator
-	[testSubject1, schema], // Full of errors
-	["miles", "string"],    // Any value can be validated, not only objects
-	[7, "string"],
-	[testSubject2, schema1],
-	["7", parseableIntSchema]
-];
+const errors = Arstotzka.validate(value, schema, optionalValidationOptions);
 
-const TEST_SELECTOR = 0;
-console.log(Arstotzka.validate(tests[TEST_SELECTOR][0], tests[TEST_SELECTOR][1], {allowExtraProperties: false}));
+console.log(errors); // Empty, meaning validation is passed
