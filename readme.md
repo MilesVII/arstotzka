@@ -77,7 +77,7 @@ Applying a schema to a property that is an object can be done by combining **obj
 ### Error format
 ```
 { // Example error item:
-	propertyName: 'age', // Name of a property that failed validation
+	propertyName: 'age', // Name of a property that failed the validation
 	id: 'typeMismatch', // String describing type of an error. Can be used to localize error message
 	message: 'Provided type is not allowed by schema', // Error message that coressponds to error id
 	expected: 'number', // Arbitrary-purpose fields

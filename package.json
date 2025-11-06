@@ -1,11 +1,22 @@
 {
   "name": "arstotzka",
-  "version": "0.13.3",
+  "version": "0.14.1",
   "description": "JS validation utility",
   "main": "index.js",
   "type": "module",
+  "exports": {
+    ".": {
+      "main": "./dist/index.cjs",
+      "module": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "test": "node tests.js"
+    "build": "tsup src/index.ts",
+    "test": "node src/tests.js"
   },
   "keywords": [
     "JSON",
@@ -25,5 +36,9 @@
   "bugs": {
     "url": "https://github.com/MilesVII/arstotzka/issues"
   },
-  "homepage": "https://github.com/MilesVII/arstotzka#readme"
+  "homepage": "https://github.com/MilesVII/arstotzka#readme",
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3"
+  }
 }

@@ -1,4 +1,4 @@
-import * as Arstotzka from "./index.js";
+import * as Arstotzka from "./index.ts";
 
 const schema = {
 	title: "string",
@@ -107,6 +107,8 @@ const tests = [
 	["7", parseableIntSchema, 0],  // Schema with ANY_OF
 	[testSubject0, null, 1]        // Invalid schema
 ];
+
+console.log(Arstotzka.validate(tests[7][0], tests[7][1]))
 
 const testResults = tests
 	.map(t => Arstotzka.validate(t[0], t[1]).length == t[2])
