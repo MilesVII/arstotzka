@@ -1,16 +1,18 @@
 {
   "name": "arstotzka",
-  "version": "0.14.1",
-  "description": "JS validation utility",
-  "main": "index.js",
+  "version": "0.14.4",
+  "private": false,
   "type": "module",
+  "main": "dist/index.js",
   "exports": {
     ".": {
       "main": "./dist/index.cjs",
       "module": "./dist/index.js",
+      "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
     }
   },
+  "description": "JS validation utility",
   "files": [
     "dist"
   ],
@@ -40,5 +42,8 @@
   "devDependencies": {
     "tsup": "^8.5.0",
     "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
   }
 }
